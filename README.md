@@ -1,9 +1,23 @@
 ## Mock for StasD
 
-[![Rust](https://github.com/duyet/stasd-mock-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/duyet/stasd-mock-rs/actions/workflows/rust.yml)
-[![codecov](https://codecov.io/gh/duyet/stasd-mock-rs/branch/master/graph/badge.svg?token=UCI27SSTAR)](https://codecov.io/gh/duyet/stasd-mock-rs)
-
 Mocking for [stasd](https://docs.rs/statsd) crate. 
+
+[![Crates.io][crates-badge]][crates-url]
+[![MIT licensed][mit-badge]][mit-url]
+[![Build Status][actions-badge]][actions-url]
+[![Codecov][codecov-badge]][codecov-url]
+
+[crates-badge]: https://img.shields.io/crates/v/statsd-mock.svg
+[crates-url]: https://crates.io/crates/statsd-mock
+[mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
+[mit-url]: https://github.com/duyet/statsd-mock-rs/blob/master/LICENSE
+[actions-badge]: https://github.com/duyet/statsd-mock-rs/actions/workflows/rust.yml/badge.svg
+[actions-url]: https://github.com/duyet/statsd-mock-rs/actions?query=branch%3Amaster
+[codecov-badge]: https://codecov.io/gh/duyet/stasd-mock-rs/branch/master/graph/badge.svg?token=UCI27SSTAR
+[codecov-url]: https://codecov.io/gh/duyet/stasd-mock-rs
+
+[Website](https://github.com/duyet/statsd-mock-rs) |
+[API Docs](https://docs.rs/statsd-mock)
 
 ### Usage
 
