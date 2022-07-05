@@ -1,6 +1,6 @@
-## Mock for StasD
+## Mock StatsD for Rust
 
-Mocking for [stasd](https://docs.rs/statsd) crate. 
+Mock for [statsd](https://docs.rs/statsd) crate. 
 
 [![Crates.io][crates-badge]][crates-url]
 [![MIT licensed][mit-badge]][mit-url]
