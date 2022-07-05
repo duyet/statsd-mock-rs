@@ -144,12 +144,22 @@ jobs:
     name: Release
     needs: [check, test, fmt, clippy, cov]
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+          - nightly
+          - 1.62.0 # MSRV
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
 
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          override: true
 
       - name: Publish to crates.io
         if: startsWith(github.ref, 'refs/tags/')
