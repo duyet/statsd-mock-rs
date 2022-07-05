@@ -2,6 +2,9 @@
 name = "statsd-mock"
 version = "0.1.0"
 edition = "2021"
+description = "Mocking for statsd"
+license-file = "LICENSE"
+authors = ["Duyet Le <me@duyet.net>"]
 
 [dependencies]
 itertools = "0.10"

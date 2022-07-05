@@ -2,7 +2,7 @@ on: [push, pull_request, workflow_dispatch]
 name: Rust
 jobs:
   check:
-    name: Check
+    name: cargo check
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -79,7 +79,7 @@ jobs:
           args: --all -- --check
 
   clippy:
-    name: Clippy
+    name: cargo clippy
     runs-on: ubuntu-latest
     strategy:
       matrix:
