@@ -67,5 +67,46 @@ fn main() {
         println!("  [{}] {:?}", i + 1, packet);
     }
 
+    // Use collection helpers
+    println!("\n=== Collection helpers ===");
+    let all_counters = packets.all_counters();
+    println!("All counters:");
+    for (name, value) in all_counters {
+        println!("  {} = {}", name, value);
+    }
+
+    let all_gauges = packets.all_gauges();
+    println!("\nAll gauges:");
+    for (name, value) in all_gauges {
+        println!("  {} = {}", name, value);
+    }
+
+    // Iterator support
+    println!("\n=== Iterator support ===");
+    println!("Iterating over packets:");
+    for (i, packet) in (&packets).into_iter().enumerate() {
+        println!("  [{}] {} (name: {})", i + 1, packet, packet.name());
+    }
+
+    // Advanced assertions
+    println!("\n=== Advanced assertions ===");
+    let mock2 = statsd_mock::start();
+    let client2 = Client::new(&mock2.addr(), "app").unwrap();
+
+    mock2
+        .capture_parsed(|| {
+            client2.incr("requests");
+            client2.incr("errors");
+            client2.gauge("cpu", 75.5);
+        })
+        .assert_len(3) // Assert exactly 3 packets
+        .assert_exists("app.requests") // Assert metric exists
+        .assert_exists("app.errors")
+        .assert_counter("app.requests", 1)
+        .assert_counter("app.errors", 1)
+        .assert_gauge("app.cpu", 75.5);
+
+    println!("✓ All advanced assertions passed!");
+
     println!("\n✓ Example completed successfully!");
 }

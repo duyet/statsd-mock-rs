@@ -25,7 +25,7 @@ Add the `statsd-mock` package as a dev dependency in your `Cargo.toml` file
 
 ```toml
 [dev-dependencies]
-statsd-mock = "0.1"
+statsd-mock = "0.2"
 ```
 
 ### Example
@@ -88,6 +88,20 @@ fn main() {
 - ✅ **Intelligent Timing** - Adaptive packet collection (no more arbitrary sleeps!)
 - ✅ **Backward Compatible** - All existing code continues to work
 - ✅ **Comprehensive Protocol Support** - Counters, gauges, timers, histograms, sets
+- ✅ **Iterator Support** - Iterate over captured packets naturally
+- ✅ **Collection Helpers** - Get all counters, all gauges, filter by name
+- ✅ **Error Handling** - Graceful parsing with detailed error types
+
+### What's New in 0.2.0
+
+- **Structured Packet Parsing** - Parse StatsD packets into type-safe `Packet` enum
+- **Enhanced Assertions** - New `assert_histogram()`, `assert_set()`, `assert_len()`, `assert_exists()`
+- **Collection Methods** - `all_counters()`, `all_gauges()`, `filter_by_name()`
+- **Iterator Support** - Full `IntoIterator` implementation for `CapturedPackets`
+- **Display Implementation** - Pretty-print packets with `Display` trait
+- **Comprehensive Testing** - 40+ tests covering all functionality
+- **Clippy Lints** - Strict linting for code quality
+- **Better Docs** - Extensive documentation and examples
 
 ## License
 

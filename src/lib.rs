@@ -1,4 +1,11 @@
 #![doc = include_str!("../README.md")]
+#![warn(missing_docs)]
+#![warn(clippy::all)]
+#![warn(clippy::pedantic)]
+#![warn(clippy::nursery)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_panics_doc)]
 
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::{
@@ -8,6 +15,12 @@ use std::sync::{
 };
 use std::thread;
 use std::time::{Duration, Instant};
+
+// Configuration constants for packet collection timing
+const RECV_TIMEOUT_MS: u64 = 10; // How often to check for new packets
+const QUIET_PERIOD_MS: u64 = 50; // How long of silence indicates completion
+const MAX_WAIT_SECS: u64 = 2; // Maximum time to wait for packets
+const SOCKET_READ_TIMEOUT_MS: u64 = 100; // UDP socket read timeout
 
 // Mock StatsD Server
 pub struct StatsDServer {
@@ -26,7 +39,7 @@ impl StatsDServer {
         let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
         let sock = UdpSocket::bind(addr).unwrap();
 
-        sock.set_read_timeout(Some(Duration::from_millis(100)))
+        sock.set_read_timeout(Some(Duration::from_millis(SOCKET_READ_TIMEOUT_MS)))
             .unwrap();
         let local_addr = sock.local_addr().unwrap();
 
@@ -34,6 +47,7 @@ impl StatsDServer {
     }
 
     /// Return the mock server address: `127.0.0.1:<random port>`
+    #[must_use]
     pub fn addr(&self) -> String {
         self.local_addr.clone().to_string()
     }
@@ -83,12 +97,12 @@ impl StatsDServer {
         // This adapts to actual network timing instead of arbitrary sleeps
         let mut packets = Vec::new();
         let start = Instant::now();
-        let max_wait = Duration::from_secs(2);
-        let quiet_period = Duration::from_millis(50);
+        let max_wait = Duration::from_secs(MAX_WAIT_SECS);
+        let quiet_period = Duration::from_millis(QUIET_PERIOD_MS);
         let mut last_packet_time = Instant::now();
 
         loop {
-            match serv_rx.recv_timeout(Duration::from_millis(10)) {
+            match serv_rx.recv_timeout(Duration::from_millis(RECV_TIMEOUT_MS)) {
                 Ok(bytes) => {
                     last_packet_time = Instant::now();
                     packets.push(bytes);
@@ -201,6 +215,18 @@ impl StatsDServer {
     }
 }
 
+/// Start a new mock StatsD server
+///
+/// Creates a new UDP server listening on `127.0.0.1` with a random available port.
+/// The server is ready to capture packets immediately after creation.
+///
+/// # Examples
+///
+/// ```
+/// let mock = statsd_mock::start();
+/// println!("Mock server running at {}", mock.addr());
+/// ```
+#[must_use]
 pub fn start() -> StatsDServer {
     StatsDServer::default()
 }
@@ -247,6 +273,28 @@ impl std::fmt::Display for ParseError {
 }
 
 impl std::error::Error for ParseError {}
+
+impl std::fmt::Display for Packet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Packet::Counter {
+                name,
+                value,
+                sample_rate,
+            } => {
+                if let Some(rate) = sample_rate {
+                    write!(f, "{}:{}|c|@{}", name, value, rate)
+                } else {
+                    write!(f, "{}:{}|c", name, value)
+                }
+            }
+            Packet::Gauge { name, value } => write!(f, "{}:{}|g", name, value),
+            Packet::Timer { name, value } => write!(f, "{}:{}|ms", name, value),
+            Packet::Histogram { name, value } => write!(f, "{}:{}|h", name, value),
+            Packet::Set { name, value } => write!(f, "{}:{}|s", name, value),
+        }
+    }
+}
 
 impl Packet {
     /// Parse a StatsD protocol string into a structured Packet
@@ -329,6 +377,7 @@ impl Packet {
     }
 
     /// Get the metric name
+    #[must_use]
     pub fn name(&self) -> &str {
         match self {
             Packet::Counter { name, .. } => name,
@@ -340,6 +389,7 @@ impl Packet {
     }
 
     /// Get the value as a counter (if applicable)
+    #[must_use]
     pub fn as_counter(&self) -> Option<i64> {
         match self {
             Packet::Counter { value, .. } => Some(*value),
@@ -348,6 +398,7 @@ impl Packet {
     }
 
     /// Get the value as a gauge (if applicable)
+    #[must_use]
     pub fn as_gauge(&self) -> Option<f64> {
         match self {
             Packet::Gauge { value, .. } => Some(*value),
@@ -356,6 +407,7 @@ impl Packet {
     }
 
     /// Get the value as a timer (if applicable)
+    #[must_use]
     pub fn as_timer(&self) -> Option<f64> {
         match self {
             Packet::Timer { value, .. } => Some(*value),
@@ -365,7 +417,7 @@ impl Packet {
 }
 
 /// A collection of captured packets with helper methods for assertions
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CapturedPackets {
     packets: Vec<Packet>,
     raw: Vec<String>,
@@ -382,26 +434,31 @@ impl CapturedPackets {
     }
 
     /// Get all packets
+    #[must_use]
     pub fn packets(&self) -> &[Packet] {
         &self.packets
     }
 
     /// Get raw strings (for backward compatibility)
+    #[must_use]
     pub fn raw(&self) -> &[String] {
         &self.raw
     }
 
     /// Number of captured packets
+    #[must_use]
     pub fn len(&self) -> usize {
         self.packets.len()
     }
 
     /// Check if no packets were captured
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.packets.is_empty()
     }
 
     /// Find a counter by name and return its value
+    #[must_use]
     pub fn counter(&self, name: &str) -> Option<i64> {
         self.packets
             .iter()
@@ -410,6 +467,7 @@ impl CapturedPackets {
     }
 
     /// Find a gauge by name and return its value
+    #[must_use]
     pub fn gauge(&self, name: &str) -> Option<f64> {
         self.packets
             .iter()
@@ -418,11 +476,69 @@ impl CapturedPackets {
     }
 
     /// Find a timer by name and return its value
+    #[must_use]
     pub fn timer(&self, name: &str) -> Option<f64> {
         self.packets
             .iter()
             .find(|p| p.name() == name)
             .and_then(|p| p.as_timer())
+    }
+
+    /// Find a histogram by name and return its value
+    #[must_use]
+    pub fn histogram(&self, name: &str) -> Option<f64> {
+        self.packets
+            .iter()
+            .find(|p| p.name() == name)
+            .and_then(|p| match p {
+                Packet::Histogram { value, .. } => Some(*value),
+                _ => None,
+            })
+    }
+
+    /// Find a set by name and return its value
+    #[must_use]
+    pub fn set(&self, name: &str) -> Option<&str> {
+        self.packets
+            .iter()
+            .find(|p| p.name() == name)
+            .and_then(|p| match p {
+                Packet::Set { value, .. } => Some(value.as_str()),
+                _ => None,
+            })
+    }
+
+    /// Get all counters as a map of name -> value
+    #[must_use]
+    pub fn all_counters(&self) -> Vec<(&str, i64)> {
+        self.packets
+            .iter()
+            .filter_map(|p| match p {
+                Packet::Counter { name, value, .. } => Some((name.as_str(), *value)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Get all gauges as a map of name -> value
+    #[must_use]
+    pub fn all_gauges(&self) -> Vec<(&str, f64)> {
+        self.packets
+            .iter()
+            .filter_map(|p| match p {
+                Packet::Gauge { name, value } => Some((name.as_str(), *value)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Filter packets by metric name
+    #[must_use]
+    pub fn filter_by_name(&self, name: &str) -> Vec<&Packet> {
+        self.packets
+            .iter()
+            .filter(|p| p.name() == name)
+            .collect()
     }
 
     /// Chainable assertion for counter values
@@ -484,6 +600,95 @@ impl CapturedPackets {
             None => panic!("Timer '{}' not found in captured packets", name),
         }
         self
+    }
+
+    /// Chainable assertion for histogram values
+    ///
+    /// # Panics
+    ///
+    /// Panics if the histogram is not found or has a different value
+    pub fn assert_histogram(self, name: &str, expected: f64) -> Self {
+        match self.histogram(name) {
+            Some(actual) => {
+                assert!(
+                    (actual - expected).abs() < f64::EPSILON,
+                    "Histogram '{}' has value {} but expected {}",
+                    name,
+                    actual,
+                    expected
+                );
+            }
+            None => panic!("Histogram '{}' not found in captured packets", name),
+        }
+        self
+    }
+
+    /// Chainable assertion for set values
+    ///
+    /// # Panics
+    ///
+    /// Panics if the set is not found or has a different value
+    pub fn assert_set(self, name: &str, expected: &str) -> Self {
+        match self.set(name) {
+            Some(actual) => {
+                assert_eq!(
+                    actual, expected,
+                    "Set '{}' has value '{}' but expected '{}'",
+                    name, actual, expected
+                );
+            }
+            None => panic!("Set '{}' not found in captured packets", name),
+        }
+        self
+    }
+
+    /// Assert that a specific number of packets were captured
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of packets doesn't match expected
+    pub fn assert_len(self, expected: usize) -> Self {
+        assert_eq!(
+            self.len(),
+            expected,
+            "Expected {} packets but captured {}",
+            expected,
+            self.len()
+        );
+        self
+    }
+
+    /// Assert that the metric exists (regardless of value)
+    ///
+    /// # Panics
+    ///
+    /// Panics if the metric is not found
+    pub fn assert_exists(self, name: &str) -> Self {
+        assert!(
+            self.packets.iter().any(|p| p.name() == name),
+            "Metric '{}' not found in captured packets",
+            name
+        );
+        self
+    }
+}
+
+// Iterator implementations for CapturedPackets
+impl<'a> IntoIterator for &'a CapturedPackets {
+    type Item = &'a Packet;
+    type IntoIter = std::slice::Iter<'a, Packet>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.packets.iter()
+    }
+}
+
+impl IntoIterator for CapturedPackets {
+    type Item = Packet;
+    type IntoIter = std::vec::IntoIter<Packet>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.packets.into_iter()
     }
 }
 
@@ -769,5 +974,200 @@ mod tests {
         assert_eq!(packets.counter("testapp.requests"), Some(1));
         assert_eq!(packets.counter("testapp.items"), Some(5));
         assert_eq!(packets.gauge("testapp.memory"), Some(1024.0));
+    }
+
+    // ========================================================================
+    // Tests for New Methods
+    // ========================================================================
+
+    #[test]
+    fn test_packet_display() {
+        assert_eq!(
+            Packet::Counter {
+                name: "test".to_string(),
+                value: 42,
+                sample_rate: None
+            }
+            .to_string(),
+            "test:42|c"
+        );
+
+        assert_eq!(
+            Packet::Counter {
+                name: "test".to_string(),
+                value: 42,
+                sample_rate: Some(0.5)
+            }
+            .to_string(),
+            "test:42|c|@0.5"
+        );
+
+        assert_eq!(
+            Packet::Gauge {
+                name: "test".to_string(),
+                value: 3.14
+            }
+            .to_string(),
+            "test:3.14|g"
+        );
+    }
+
+    #[test]
+    fn test_histogram_lookup() {
+        let raw = vec!["myapp.histogram:99.9|h".to_string()];
+        let packets = CapturedPackets::from_raw(raw);
+
+        assert_eq!(packets.histogram("myapp.histogram"), Some(99.9));
+        assert_eq!(packets.histogram("nonexistent"), None);
+    }
+
+    #[test]
+    fn test_set_lookup() {
+        let raw = vec!["myapp.users:user123|s".to_string()];
+        let packets = CapturedPackets::from_raw(raw);
+
+        assert_eq!(packets.set("myapp.users"), Some("user123"));
+        assert_eq!(packets.set("nonexistent"), None);
+    }
+
+    #[test]
+    fn test_all_counters() {
+        let raw = vec![
+            "app.c1:1|c".to_string(),
+            "app.c2:42|c".to_string(),
+            "app.gauge:3.14|g".to_string(),
+        ];
+        let packets = CapturedPackets::from_raw(raw);
+        let counters = packets.all_counters();
+
+        assert_eq!(counters.len(), 2);
+        assert!(counters.contains(&("app.c1", 1)));
+        assert!(counters.contains(&("app.c2", 42)));
+    }
+
+    #[test]
+    fn test_all_gauges() {
+        let raw = vec![
+            "app.g1:1.5|g".to_string(),
+            "app.g2:2.5|g".to_string(),
+            "app.counter:1|c".to_string(),
+        ];
+        let packets = CapturedPackets::from_raw(raw);
+        let gauges = packets.all_gauges();
+
+        assert_eq!(gauges.len(), 2);
+        assert!(gauges.contains(&("app.g1", 1.5)));
+        assert!(gauges.contains(&("app.g2", 2.5)));
+    }
+
+    #[test]
+    fn test_filter_by_name() {
+        let raw = vec![
+            "app.metric:1|c".to_string(),
+            "app.metric:2|c".to_string(),
+            "app.other:3|c".to_string(),
+        ];
+        let packets = CapturedPackets::from_raw(raw);
+        let filtered = packets.filter_by_name("app.metric");
+
+        assert_eq!(filtered.len(), 2);
+    }
+
+    #[test]
+    fn test_assert_histogram() {
+        let raw = vec!["app.h:99.9|h".to_string()];
+        let packets = CapturedPackets::from_raw(raw);
+
+        packets.assert_histogram("app.h", 99.9);
+    }
+
+    #[test]
+    #[should_panic(expected = "Histogram 'app.h' has value 99.9 but expected 100")]
+    fn test_assert_histogram_wrong_value() {
+        let raw = vec!["app.h:99.9|h".to_string()];
+        let packets = CapturedPackets::from_raw(raw);
+
+        packets.assert_histogram("app.h", 100.0);
+    }
+
+    #[test]
+    fn test_assert_set() {
+        let raw = vec!["app.s:value|s".to_string()];
+        let packets = CapturedPackets::from_raw(raw);
+
+        packets.assert_set("app.s", "value");
+    }
+
+    #[test]
+    #[should_panic(expected = "Set 'app.s' has value 'value' but expected 'other'")]
+    fn test_assert_set_wrong_value() {
+        let raw = vec!["app.s:value|s".to_string()];
+        let packets = CapturedPackets::from_raw(raw);
+
+        packets.assert_set("app.s", "other");
+    }
+
+    #[test]
+    fn test_assert_len() {
+        let raw = vec!["app.c:1|c".to_string(), "app.g:2.0|g".to_string()];
+        let packets = CapturedPackets::from_raw(raw);
+
+        packets.assert_len(2);
+    }
+
+    #[test]
+    #[should_panic(expected = "Expected 3 packets but captured 2")]
+    fn test_assert_len_wrong() {
+        let raw = vec!["app.c:1|c".to_string(), "app.g:2.0|g".to_string()];
+        let packets = CapturedPackets::from_raw(raw);
+
+        packets.assert_len(3);
+    }
+
+    #[test]
+    fn test_assert_exists() {
+        let raw = vec!["app.c:1|c".to_string()];
+        let packets = CapturedPackets::from_raw(raw);
+
+        packets.assert_exists("app.c");
+    }
+
+    #[test]
+    #[should_panic(expected = "Metric 'nonexistent' not found")]
+    fn test_assert_exists_not_found() {
+        let raw = vec!["app.c:1|c".to_string()];
+        let packets = CapturedPackets::from_raw(raw);
+
+        packets.assert_exists("nonexistent");
+    }
+
+    #[test]
+    fn test_iterator_support() {
+        let raw = vec!["app.c1:1|c".to_string(), "app.c2:2|c".to_string()];
+        let packets = CapturedPackets::from_raw(raw);
+
+        let count = packets.into_iter().count();
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_iterator_ref() {
+        let raw = vec!["app.c1:1|c".to_string(), "app.c2:2|c".to_string()];
+        let packets = CapturedPackets::from_raw(raw);
+
+        let count = (&packets).into_iter().count();
+        assert_eq!(count, 2);
+        // Can still use packets after ref iteration
+        assert_eq!(packets.len(), 2);
+    }
+
+    #[test]
+    fn test_captured_packets_partial_eq() {
+        let raw1 = vec!["app.c:1|c".to_string()];
+        let raw2 = vec!["app.c:1|c".to_string()];
+        let packets1 = CapturedPackets::from_raw(raw1);
+        let packets2 = CapturedPackets::from_raw(raw2);
+
+        assert_eq!(packets1, packets2);
     }
 }

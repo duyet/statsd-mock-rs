@@ -1,10 +1,14 @@
 [package]
 name = "statsd-mock"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
-description = "Mocking for statsd"
+description = "Mock StatsD server for testing with intelligent timing and structured packet parsing"
 license-file = "LICENSE"
 authors = ["Duyet Le <me@duyet.net>"]
+keywords = ["statsd", "mock", "testing", "metrics"]
+categories = ["development-tools::testing"]
+repository = "https://github.com/duyet/statsd-mock-rs"
+documentation = "https://docs.rs/statsd-mock"
 
 [dependencies]
 itertools = "0.11"
