@@ -30,6 +30,8 @@ statsd-mock = "0.1"
 
 ### Example
 
+#### Simple String Matching (Original API)
+
 ```rust
 use statsd::client::Client;
 
@@ -46,6 +48,46 @@ fn main() {
   assert_eq!(response, "myapp.some.counter:1|c");
 }
 ```
+
+#### Structured Assertions (New Recommended API) ✨
+
+The new `capture_parsed()` API provides type-safe access to metric values and fluent assertions:
+
+```rust
+use statsd::client::Client;
+
+fn main() {
+  let mock = statsd_mock::start();
+  let client = Client::new(&mock.addr(), "myapp").unwrap();
+
+  // Capture with parsed packet data
+  let packets = mock.capture_parsed(|| {
+    client.incr("requests");
+    client.gauge("memory_mb", 1024.0);
+    client.time("response_ms", 250.0);
+  });
+
+  // Type-safe value lookups
+  assert_eq!(packets.counter("myapp.requests"), Some(1));
+  assert_eq!(packets.gauge("myapp.memory_mb"), Some(1024.0));
+  assert_eq!(packets.timer("myapp.response_ms"), Some(250.0));
+
+  // Or use fluent chainable assertions
+  packets
+    .assert_counter("myapp.requests", 1)
+    .assert_gauge("myapp.memory_mb", 1024.0)
+    .assert_timer("myapp.response_ms", 250.0);
+}
+```
+
+### Features
+
+- ✅ **Zero Configuration** - Just start and use
+- ✅ **Type-Safe Assertions** - Parsed packet API with compile-time safety
+- ✅ **Fluent Interface** - Chain assertions for clean test code
+- ✅ **Intelligent Timing** - Adaptive packet collection (no more arbitrary sleeps!)
+- ✅ **Backward Compatible** - All existing code continues to work
+- ✅ **Comprehensive Protocol Support** - Counters, gauges, timers, histograms, sets
 
 ## License
 
