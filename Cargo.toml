@@ -2,9 +2,11 @@
 name = "statsd-mock"
 version = "0.2.0"
 edition = "2021"
+rust-version = "1.62.0"
 description = "Mock StatsD server for testing with intelligent timing and structured packet parsing"
 license-file = "LICENSE"
 authors = ["Duyet Le <me@duyet.net>"]
+readme = "README.md"
 keywords = ["statsd", "mock", "testing", "metrics"]
 categories = ["development-tools::testing"]
 repository = "https://github.com/duyet/statsd-mock-rs"

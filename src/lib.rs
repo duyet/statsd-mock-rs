@@ -35,6 +35,17 @@ impl Default for StatsDServer {
 }
 
 impl StatsDServer {
+    /// Create a new mock StatsD server
+    ///
+    /// The server will listen on `127.0.0.1` with a random available port.
+    /// The port is automatically assigned by the operating system.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let server = statsd_mock::StatsDServer::new();
+    /// println!("Server listening on: {}", server.addr());
+    /// ```
     pub fn new() -> Self {
         let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
         let sock = UdpSocket::bind(addr).unwrap();
@@ -47,9 +58,31 @@ impl StatsDServer {
     }
 
     /// Return the mock server address: `127.0.0.1:<random port>`
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mock = statsd_mock::start();
+    /// let addr = mock.addr();
+    /// assert!(addr.starts_with("127.0.0.1:"));
+    /// ```
     #[must_use]
     pub fn addr(&self) -> String {
-        self.local_addr.clone().to_string()
+        self.local_addr.to_string()
+    }
+
+    /// Return the port number the server is listening on
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mock = statsd_mock::start();
+    /// let port = mock.port();
+    /// assert!(port > 0);
+    /// ```
+    #[must_use]
+    pub fn port(&self) -> u16 {
+        self.local_addr.port()
     }
 
     /// Run the given test function while receiving several packets.
@@ -423,7 +456,35 @@ pub struct CapturedPackets {
     raw: Vec<String>,
 }
 
+impl Default for CapturedPackets {
+    fn default() -> Self {
+        Self {
+            packets: Vec::new(),
+            raw: Vec::new(),
+        }
+    }
+}
+
+impl From<Vec<String>> for CapturedPackets {
+    fn from(raw: Vec<String>) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<Vec<Packet>> for CapturedPackets {
+    fn from(packets: Vec<Packet>) -> Self {
+        let raw = packets.iter().map(|p| p.to_string()).collect();
+        Self { packets, raw }
+    }
+}
+
 impl CapturedPackets {
+    /// Create a new empty CapturedPackets
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Create a new CapturedPackets from raw strings
     pub fn from_raw(raw: Vec<String>) -> Self {
         let packets = raw
@@ -539,6 +600,48 @@ impl CapturedPackets {
             .iter()
             .filter(|p| p.name() == name)
             .collect()
+    }
+
+    /// Filter packets by name prefix
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use statsd_mock::CapturedPackets;
+    ///
+    /// let raw = vec![
+    ///     "myapp.requests:1|c".to_string(),
+    ///     "myapp.errors:2|c".to_string(),
+    ///     "other.metric:3|c".to_string(),
+    /// ];
+    /// let packets = CapturedPackets::from_raw(raw);
+    /// let myapp_packets = packets.filter_by_prefix("myapp.");
+    /// assert_eq!(myapp_packets.len(), 2);
+    /// ```
+    #[must_use]
+    pub fn filter_by_prefix(&self, prefix: &str) -> Vec<&Packet> {
+        self.packets
+            .iter()
+            .filter(|p| p.name().starts_with(prefix))
+            .collect()
+    }
+
+    /// Get the first packet matching the given name
+    #[must_use]
+    pub fn first(&self, name: &str) -> Option<&Packet> {
+        self.packets.iter().find(|p| p.name() == name)
+    }
+
+    /// Count packets matching the given name
+    #[must_use]
+    pub fn count(&self, name: &str) -> usize {
+        self.packets.iter().filter(|p| p.name() == name).count()
+    }
+
+    /// Check if any packet with the given name exists
+    #[must_use]
+    pub fn contains(&self, name: &str) -> bool {
+        self.packets.iter().any(|p| p.name() == name)
     }
 
     /// Chainable assertion for counter values
@@ -701,7 +804,20 @@ mod tests {
     fn test_get_addr() {
         let mock = start();
 
-        assert_eq!(mock.addr().contains("127.0.0.1:"), true);
+        assert!(mock.addr().contains("127.0.0.1:"));
+        assert!(mock.addr().starts_with("127.0.0.1:"));
+    }
+
+    #[test]
+    fn test_get_port() {
+        let mock = start();
+
+        let port = mock.port();
+        assert!(port > 0);
+        assert!(port < 65536);
+
+        // Port should be in the addr string
+        assert!(mock.addr().contains(&port.to_string()));
     }
 
     #[test]
@@ -1169,5 +1285,87 @@ mod tests {
         let packets2 = CapturedPackets::from_raw(raw2);
 
         assert_eq!(packets1, packets2);
+    }
+
+    // ========================================================================
+    // Tests for Additional Helper Methods
+    // ========================================================================
+
+    #[test]
+    fn test_captured_packets_new() {
+        let packets = CapturedPackets::new();
+        assert_eq!(packets.len(), 0);
+        assert!(packets.is_empty());
+    }
+
+    #[test]
+    fn test_captured_packets_default() {
+        let packets = CapturedPackets::default();
+        assert_eq!(packets.len(), 0);
+        assert!(packets.is_empty());
+    }
+
+    #[test]
+    fn test_from_vec_string() {
+        let raw = vec!["app.c:1|c".to_string()];
+        let packets: CapturedPackets = raw.into();
+        assert_eq!(packets.len(), 1);
+        assert_eq!(packets.counter("app.c"), Some(1));
+    }
+
+    #[test]
+    fn test_from_vec_packet() {
+        let packets_vec = vec![Packet::Counter {
+            name: "test".to_string(),
+            value: 42,
+            sample_rate: None,
+        }];
+        let packets: CapturedPackets = packets_vec.into();
+        assert_eq!(packets.len(), 1);
+        assert_eq!(packets.counter("test"), Some(42));
+    }
+
+    #[test]
+    fn test_filter_by_prefix() {
+        let raw = vec![
+            "myapp.requests:1|c".to_string(),
+            "myapp.errors:2|c".to_string(),
+            "other.metric:3|c".to_string(),
+        ];
+        let packets = CapturedPackets::from_raw(raw);
+        let myapp = packets.filter_by_prefix("myapp.");
+        assert_eq!(myapp.len(), 2);
+    }
+
+    #[test]
+    fn test_first() {
+        let raw = vec![
+            "app.metric:1|c".to_string(),
+            "app.metric:2|c".to_string(),
+        ];
+        let packets = CapturedPackets::from_raw(raw);
+        let first = packets.first("app.metric").unwrap();
+        assert_eq!(first.as_counter(), Some(1));
+    }
+
+    #[test]
+    fn test_count() {
+        let raw = vec![
+            "app.metric:1|c".to_string(),
+            "app.metric:2|c".to_string(),
+            "app.other:3|c".to_string(),
+        ];
+        let packets = CapturedPackets::from_raw(raw);
+        assert_eq!(packets.count("app.metric"), 2);
+        assert_eq!(packets.count("app.other"), 1);
+        assert_eq!(packets.count("nonexistent"), 0);
+    }
+
+    #[test]
+    fn test_contains() {
+        let raw = vec!["app.c:1|c".to_string()];
+        let packets = CapturedPackets::from_raw(raw);
+        assert!(packets.contains("app.c"));
+        assert!(!packets.contains("nonexistent"));
     }
 }
