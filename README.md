@@ -103,8 +103,16 @@ fn main() {
 - **Clippy Lints** - Strict linting for code quality
 - **Better Docs** - Extensive documentation and examples
 
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Security
+
+This is a testing utility for development/test environments only. See [SECURITY.md](SECURITY.md) for security policy and best practices.
+
 ## License
 
-[MIT](LICENSE.txt).
+[MIT](LICENSE).
 
 
