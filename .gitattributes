@@ -1,0 +1,56 @@
+# Set default behavior to automatically normalize line endings
+* text=auto
+
+# Rust source files
+*.rs text diff=rust
+
+# Cargo files
+Cargo.toml text
+Cargo.lock text
+
+# Documentation
+*.md text
+CLAUDE.md text
+
+# Shell scripts
+*.sh text eol=lf
+
+# YAML files
+*.yml text
+*.yaml text
+
+# TOML files
+*.toml text
+
+# Explicitly declare files that should always have LF line endings on checkout
+*.rs eol=lf
+
+# Declare files that will always have CRLF line endings on checkout
+*.bat eol=crlf
+*.cmd eol=crlf
+
+# Denote all files that are truly binary and should not be modified
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mov binary
+*.mp4 binary
+*.mp3 binary
+*.flv binary
+*.fla binary
+*.swf binary
+*.gz binary
+*.zip binary
+*.7z binary
+*.ttf binary
+*.eot binary
+*.woff binary
+*.woff2 binary
+*.pyc binary
+*.pdf binary
+*.ez binary
+*.bz2 binary
+*.swp binary
+*.profraw binary
