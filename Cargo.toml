@@ -13,7 +13,7 @@ repository = "https://github.com/duyet/statsd-mock-rs"
 documentation = "https://docs.rs/statsd-mock"
 
 [dependencies]
-itertools = "0.10"
+itertools = "0.14"
 
 [dev-dependencies]
 statsd = "0.16"
